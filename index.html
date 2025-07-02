@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DayZ types.xml Merger & Editor — Enhanced</title>
+<style>
+  /* --- Basic reset & styling --- */
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: #121212;
+    color: #ddd;
+    margin: 0;
+    padding: 1rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  h2 {
+    margin-bottom: 0.5rem;
+    color: #0af;
+  }
+  button {
+    cursor: pointer;
+    background: #0a4;
+    color: #ddd;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    margin: 0 0.3rem 0.5rem 0;
+    border-radius: 3px;
+    font-weight: 600;
+    user-select: none;
+  }
+  button:disabled {
+    background: #444;
+    cursor: not-allowed;
+  }
+  input[type="file"] {
+    margin-bottom: 1rem;
+  }
+  label {
+    margin-right: 1rem;
+  }
+  select, input[type="text"], input[type="number"] {
+    background: #222;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.9rem;
+    width: 6rem;
+  }
+  input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    vertical-align: middle;
+  }
+  #status {
+    margin: 1rem 0;
+    font-weight: 700;
+    min-height: 1.2em;
+  }
+  .file-tabs {
+    margin-bottom: 0.8rem;
+  }
+  .file-tabs button {
+    background: #333;
+    color: #eee;
+    border: 1px solid #444;
+  }
+  .file-tabs button.active {
+    background: #0af;
+    color: #121212;
+    font-weight: 700;
+  }
+  #filterBar, .bulk-panel {
+    background: #1a1a1a;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+  }
+  #filterBar label, .bulk-panel label {
+    display: inline-flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+    margin-right: 1rem;
+    min-width: 110px;
+  }
+  #fileViewer {
+    flex-grow: 1;
+    overflow-x: auto;
+    background: #0e0e0e;
+    border-radius: 5px;
+    border: 1px solid #222;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    border: 1px solid #333;
+    padding: 0.3rem 0.5rem;
+    text-align: center;
+    max-width: 120px;
+    word-break: break-word;
+  }
+  th {
+    background: #222;
+    color: #0af;
+    user-select: none;
+  }
+  tr:nth-child(even) {
+    background: #1b1b1b;
+  }
+  tr:hover {
+    background: #2a2a2a;
+  }
+  .pagination {
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+  .pagination button {
+    background: #333;
+    color: #eee;
+    border: 1px solid #444;
+    margin: 0 0.1rem;
+    padding: 0.3rem 0.7rem;
+  }
+  .pagination button.active {
+    background: #0af;
+    color: #121212;
+    font-weight: 700;
+  }
+  /* Scroll bar for file viewer */
+  #fileViewer::-webkit-scrollbar {
+    height: 8px;
+  }
+  #fileViewer::-webkit-scrollbar-track {
+    background: #111;
+  }
+  #fileViewer::-webkit-scrollbar-thumb {
+    background: #0af;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<h2>DayZ types.xml Merger & Editor — Enhanced</h2>
+
+<input type="file" id="multiFileUpload" accept=".xml" multiple />
+<button id="mergeButton" disabled>Merge All into Base</button>
+<button id="exportButton" disabled>Download Base XML</button>
+
+<div id="status"></div>
+
+<div class="file-tabs" id="fileTabs" aria-label="Loaded files tabs"></div>
+
+<div id="filterBar" aria-label="Filter and sort options">
+  <label>Filter Name:
+    <input type="text" id="filterInput" placeholder="Partial match..." />
+  </label>
+  <label>Tag:
+    <input type="text" id="tagFilter" placeholder="Partial tag match..." />
+  </label>
+  <label>Tier:
+    <input type="text" id="tierFilter" placeholder="Partial tier match..." />
+  </label>
+  <label>Sort by:
+    <select id="sortField" aria-label="Sort field selector">
+      <option value="name">Name</option>
+      <option value="nominal">Nominal</option>
+      <option value="lifetime">Lifetime</option>
+      <option value="restock">Restock</option>
+      <option value="min">Min</option>
+      <option value="category">Category</option>
+      <option value="usage">Usage</option>
+      <option value="tag">Tag</option>
+      <option value="tier">Tier</option>
+    </select>
+  </label>
+  <label>Order:
+    <select id="sortOrder" aria-label="Sort order selector">
+      <option value="asc">Ascending</option>
+      <option value="desc">Descending</option>
+    </select>
+  </label>
+</div>
+
+<div class="bulk-panel" aria-label="Bulk edit options">
+  <strong>Bulk Edit:</strong>
+  <label>Field:
+    <select id="bulkField">
+      <option value="nominal">Nominal</option>
+      <option value="lifetime">Lifetime</option>
+      <option value="restock">Restock</option>
+      <option value="min">Min</option>
+    </select>
+  </label>
+  <label>Set to:
+    <input type="number" id="bulkSetValue" placeholder="Set value" />
+  </label>
+  <label>OR Adjust by %:
+    <input type="number" id="bulkAdjustPercent" placeholder="Percent change" />
+  </label>
+  <button id="bulkApplyButton" disabled>Apply to Selected</button>
+  <button id="selectAllVisibleButton" disabled>Select All Filtered</button>
+</div>
+
+<div id="fileViewer" role="region" aria-live="polite" aria-label="Types table"></div>
+<div class="pagination" id="pagination"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // === Constants & Config ===
+  const ITEMS_PER_PAGE = 100;
+
+  // === State ===
+  const state = {
+    filesData: {}, // { filename: { items:[], xmlDoc:Document } }
+    fileOrder: [], // filenames in load order
+    currentFile: null,
+    selectedEntries: new Map(), // Map filename => Set of unique IDs
+    undoStack: [], // Array of {file, itemId, oldData, newData}
+    redoStack: [],
+    currentPage: 1,
+    mergeConflictBehavior: "skip", // or "overwrite"
+  };
+
+  // === Utility Functions ===
+
+  // Parse XML string to Document
+  function parseXML(content) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, "text/xml");
+    if (doc.querySelector("parsererror")) throw new Error("Invalid XML file");
+    return doc;
+  }
+
+  // Serialize Document to XML string with pretty indentation
+  // (Simple indentation for readability)
+  function serializeXML(doc) {
+    // Use XMLSerializer but add line breaks and indentation for readability
+    let xmlString = new XMLSerializer().serializeToString(doc);
+    // Basic formatting (simple, not perfect)
+    xmlString = xmlString.replace(/></g, ">\n<");
+    return vkbeautify.xml(xmlString);
+  }
+
+  // Simple vkbeautify (https://github.com/vkiryukhin/vkBeautify/blob/master/vkbeautify.js) subset for xml formatting
+  // Minimal implementation to beautify xml indentation for export
+  // (Embedded here to keep self-contained and no external dependencies)
+  const vkbeautify = (() => {
+    function createShiftArr(step) {
+      let space = "    ";
+      let shift = ["\n"];
+      for (let i=0; i<100; i++) {
+        shift.push(shift[i]+space);
+      }
+      return shift;
+    }
+    function xml(text, step=1) {
+      const shift = createShiftArr(step);
+      let pos = 0;
+      let output = "";
+      let regex = /(>)(<)(\/*)/g;
+      text = text.replace(regex, "$1\n$2$3");
+      let lines = text.split("\n");
+      let indent = 0;
+      for(let i=0; i<lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) continue;
+        if (line.match(/<\/\w/)) indent--;
+        output += shift[indent]+line;
+        if (line.match(/<[^!?][^>]*[^\/]>.*$/)) indent++;
+      }
+      return output.trim();
+    }
+    return { xml };
+  })();
+
+  // Generate unique ID for each type entry: combination of file + name for uniqueness
+  function generateUniqueId(file, name) {
+    return `${file}||${name}`;
+  }
+
+  // Deep clone object for undo/redo snapshots
+  function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  // Show status messages
+  function setStatus(message, isError = false) {
+    const statusEl = document.getElementById("status");
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? "#f33" : "#0f0";
+  }
+
+  // Capitalize first letter (for display labels)
+  function capitalize(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  // Get value safely from item, handle missing keys
+  function getField(item, field) {
+    if (field === "tag") return item.values[0] || "";
+    if (field === "tier") return item.values[1] || "";
+    return item[field] || "";
+  }
+
+  // Set field value on item, adjusting nested arrays if needed
+  function setField(item, field, val) {
+    if (field === "tag") {
+      if (!item.values) item.values = [];
+      item.values[0] = val;
+    } else if (field === "tier") {
+      if (!item.values) item.values = [];
+      item.values[1] = val;
+    } else {
+      item[field] = val;
+    }
+  }
+
+  // === Parsing & Loading ===
+
+  // Convert XML <type> elements to JS objects for easier manipulation
+  function xmlTypeToObj(typeEl) {
+    const obj = {
+      name: typeEl.getAttribute("name"),
+      nominal: parseInt(typeEl.querySelector("nominal")?.textContent) || 0,
+      lifetime: parseInt(typeEl.querySelector("lifetime")?.textContent) || 0,
+      restock: parseInt(typeEl.querySelector("restock")?.textContent) || 0,
+      min: parseInt(typeEl.querySelector("min")?.textContent) || 0,
+      category: typeEl.querySelector("category")?.getAttribute("name") || "",
+      usage: typeEl.querySelector("usage")?.getAttribute("name") || "",
+      values: [], // [tag, tier] from <value> elements
+    };
+    const values = typeEl.querySelectorAll("value");
+    if (values.length > 0) obj.values[0] = values[0].getAttribute("name") || "";
+    if (values.length > 1) obj.values[1] = values[1].getAttribute("name") || "";
+    return obj;
+  }
+
+  // Convert JS object back to XML element in given doc context
+  function objToXmlType(doc, obj) {
+    const typeEl = doc.createElement("type");
+    typeEl.setAttribute("name", obj.name);
+
+    // Helper to create or update element with text content
+    function createOrUpdateElem(name, val) {
+      if (val === undefined || val === null) return;
+      const el = doc.createElement(name);
+      el.textContent = val.toString();
+      typeEl.appendChild(el);
+    }
+
+    createOrUpdateElem("nominal", obj.nominal);
+    createOrUpdateElem("lifetime", obj.lifetime);
+    createOrUpdateElem("restock", obj.restock);
+    createOrUpdateElem("min", obj.min);
+
+    if (obj.category) {
+      const catEl = doc.createElement("category");
+      catEl.setAttribute("name", obj.category);
+      typeEl.appendChild(catEl);
+    }
+    if (obj.usage) {
+      const usageEl = doc.createElement("usage");
+      usageEl.setAttribute("name", obj.usage);
+      typeEl.appendChild(usageEl);
+    }
+    if (obj.values.length > 0) {
+      for (const valName of obj.values) {
+        if (valName && valName.trim() !== "") {
+          const valEl = doc.createElement("value");
+          valEl.setAttribute("name", valName);
+          typeEl.appendChild(valEl);
+        }
+      }
+    }
+
+    return typeEl;
+  }
+
+  // Load files from FileList input
+  async function loadFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+
+    // Reset state except undo/redo stacks
+    state.filesData = {};
+    state.fileOrder = [];
+    state.currentFile = null;
+    state.selectedEntries.clear();
+    state.currentPage = 1;
+    state.undoStack = [];
+    state.redoStack = [];
+
+    try {
+      for (const file of fileList) {
+        const text = await file.text();
+        const xmlDoc = parseXML(text);
+
+        // Extract <type> elements to JS objects
+        const typeEls = Array.from(xmlDoc.querySelectorAll("types > type"));
+        const items = typeEls.map(xmlTypeToObj);
+
+        // Save both original doc and parsed items
+        state.filesData[file.name] = { xmlDoc, items };
+        state.fileOrder.push(file.name);
+        state.selectedEntries.set(file.name, new Set());
+      }
+      state.currentFile = state.fileOrder[0];
+      setStatus(`✅ Loaded ${state.fileOrder.length} file(s).`);
+      updateUIAfterLoad();
+    } catch (e) {
+      setStatus(`❌ Error loading files: ${e.message}`, true);
+    }
+  }
+
+  // === Rendering ===
+
+  // Utility: Get unique values for dropdown filters from current file's items
+  function getUniqueFieldValues(field) {
+    if (!state.currentFile) return [];
+    const items = state.filesData[state.currentFile].items;
+    const vals = new Set();
+    items.forEach(i => {
+      if (field === "tag") {
+        if (i.values[0]) vals.add(i.values[0]);
+      } else if (field === "tier") {
+        if (i.values[1]) vals.add(i.values[1]);
+      } else {
+        if (i[field]) vals.add(i[field]);
+      }
+    });
+    return [...vals].sort();
+  }
+
+  // Filter & sort items according to UI inputs and return filtered subset for current page
+  function getFilteredSortedItems() {
+    if (!state.currentFile) return [];
+
+    const { items } = state.filesData[state.currentFile];
+    const nameFilter = document.getElementById("filterInput").value.toLowerCase();
+    const tagFilter = document.getElementById("tagFilter").value.toLowerCase();
+    const tierFilter = document.getElementById("tierFilter").value.toLowerCase();
+    const sortField = document.getElementById("sortField").value;
+    const sortOrder = document.getElementById("sortOrder").value === "asc" ? 1 : -1;
+
+    // Filtering
+    let filtered = items.filter(item => {
+      const nameMatch = !nameFilter || item.name.toLowerCase().includes(nameFilter);
+      const tagMatch = !tagFilter || (item.values[0] || "").toLowerCase().includes(tagFilter);
+      const tierMatch = !tierFilter || (item.values[1] || "").toLowerCase().includes(tierFilter);
+      return nameMatch && tagMatch && tierMatch;
+    });
+
+    // Sorting
+    filtered.sort((a, b) => {
+      let va = getField(a, sortField);
+      let vb = getField(b, sortField);
+      // Compare numbers if possible
+      let na = Number(va);
+      let nb = Number(vb);
+      if (!isNaN(na) && !isNaN(nb)) {
+        return (na - nb) * sortOrder;
+      }
+      // Fallback string compare
+      va = va.toString().toLowerCase();
+      vb = vb.toString().toLowerCase();
+      if (va < vb) return -1 * sortOrder;
+      if (va > vb) return 1 * sortOrder;
+      return 0;
+    });
+
+    return filtered;
+  }
+
+  // Pagination helper: get items for current page only
+  function getPagedItems(filteredItems) {
+    const startIdx = (state.currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+  }
+
+  // Build the file tabs UI and setup event handlers
+  function buildFileTabs() {
+    const container = document.getElementById("fileTabs");
+    container.innerHTML = "";
+    state.fileOrder.forEach((fname, i) => {
+      const btn = document.createElement("button");
+      btn.textContent = i === 0 ? `Base: ${fname}` : `Mod: ${fname}`;
+      btn.classList.toggle("active", fname === state.currentFile);
+      btn.onclick = () => {
+        if (fname !== state.currentFile) {
+          state.currentFile = fname;
+          state.currentPage = 1;
+          renderTable();
+          buildPagination();
+          updateBulkButtons();
+          updateSelectAllCheckbox();
+          buildFileTabs();
+        }
+      };
+      btn.setAttribute("aria-selected", fname === state.currentFile ? "true" : "false");
+      container.appendChild(btn);
+    });
+  }
+
+  // Update UI elements after loading files
+  function updateUIAfterLoad() {
+    buildFileTabs();
+    renderTable();
+    buildPagination();
+    updateBulkButtons();
+    updateSelectAllCheckbox();
+    document.getElementById("mergeButton").disabled = state.fileOrder.length < 2;
+    document.getElementById("exportButton").disabled = state.fileOrder.length === 0;
+    document.getElementById("bulkApplyButton").disabled = true;
+    document.getElementById("selectAllVisibleButton").disabled = false;
+  }
+
+  // Create the table UI for the current page of items
+  function renderTable() {
+    if (!state.currentFile) {
+      document.getElementById("fileViewer").innerHTML = "<p>No file loaded.</p>";
+      return;
+    }
+
+    const container = document.getElementById("fileViewer");
+    const filtered = getFilteredSortedItems();
+    const paged = getPagedItems(filtered);
+
+    // Store filtered count for pagination
+    state.filteredCount = filtered.length;
+
+    // Build table header with select all checkbox
+    let html = `<table aria-describedby="status" role="grid" tabindex="0"><thead><tr>
+      <th><input type="checkbox" id="selectAllCheckbox" aria-label="Select or deselect all visible items"></th>
+      <th>Name</th>
+      <th>Nominal</th>
+      <th>Lifetime</th>
+      <th>Restock</th>
+      <th>Min</th>
+      <th>Category</th>
+      <th>Usage</th>
+      <th>Tag</th>
+      <th>Tier</th>
+    </tr></thead><tbody>`;
+
+    // Helper to generate select dropdown html for category/usage/tag/tier fields
+    function buildSelect(field, currentVal) {
+      let options = [];
+      if (field === "category") options = getUniqueFieldValues("category");
+      else if (field === "usage") options = getUniqueFieldValues("usage");
+      else if (field === "tag") options = getUniqueFieldValues("tag");
+      else if (field === "tier") options = getUniqueFieldValues("tier");
+      if (!options.includes(currentVal)) options.push(currentVal);
+      options = options.filter(o => o && o.trim() !== "").sort();
+
+      return `<select aria-label="${capitalize(field)}" class="edit-select" data-field="${field}">` +
+        options.map(o => `<option value="${o}"${o === currentVal ? " selected" : ""}>${o}</option>`).join("") +
+        `</select>`;
+    }
+
+    // Helper: escape HTML entities for safety
+    function escapeHtml(text) {
+      if (!text) return "";
+      return text.replace(/[&<>"']/g, (m) => {
+        switch(m) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case "'": return '&#39;';
+          default: return m;
+        }
+      });
+    }
+
+    // Render rows
+    paged.forEach(item => {
+      const uniqueId = generateUniqueId(state.currentFile, item.name);
+      const isSelected = state.selectedEntries.get(state.currentFile)?.has(uniqueId);
+      html += `<tr data-uniqueid="${uniqueId}" tabindex="0">
+        <td><input type="checkbox" class="row-select" aria-label="Select ${escapeHtml(item.name)}" ${isSelected ? "checked" : ""}></td>
+        <td>${escapeHtml(item.name)}</td>
+        <td><input type="number" class="edit-input" data-field="nominal" value="${item.nominal}" min="0" /></td>
+        <td><input type="number" class="edit-input" data-field="lifetime" value="${item.lifetime}" min="0" /></td>
+        <td><input type="number" class="edit-input" data-field="restock" value="${item.restock}" min="0" /></td>
+        <td><input type="number" class="edit-input" data-field="min" value="${item.min}" min="0" /></td>
+        <td>${buildSelect("category", item.category)}</td>
+        <td>${buildSelect("usage", item.usage)}</td>
+        <td>${buildSelect("tag", item.values[0] || "")}</td>
+        <td>${buildSelect("tier", item.values[1] || "")}</td>
+      </tr>`;
+    });
+
+    html += "</tbody></table>";
+
+    container.innerHTML = html;
+
+    // Attach event listeners for selects and inputs
+    container.querySelectorAll(".edit-input").forEach(input => {
+      input.addEventListener("change", onCellEdit);
+    });
+    container.querySelectorAll(".edit-select").forEach(select => {
+      select.addEventListener("change", onCellEdit);
+    });
+    container.querySelectorAll(".row-select").forEach(checkbox => {
+      checkbox.addEventListener("change", onRowSelectionChange);
+    });
+
+    // Attach event for "select all" checkbox
+    const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+    selectAllCheckbox.checked = paged.every(item =>
+      state.selectedEntries.get(state.currentFile).has(generateUniqueId(state.currentFile, item.name))
+    );
+    selectAllCheckbox.indeterminate = !selectAllCheckbox.checked && [...container.querySelectorAll(".row-select")]
+      .some(cb => cb.checked);
+
+    selectAllCheckbox.addEventListener("change", onSelectAllChange);
+  }
+
+  // Pagination controls
+  function buildPagination() {
+    const container = document.getElementById("pagination");
+    container.innerHTML = "";
+    if (!state.currentFile) return;
+
+    const totalPages = Math.ceil(state.filteredCount / ITEMS_PER_PAGE);
+    if (totalPages < 2) return; // No pagination needed
+
+    const createPageButton = (num) => {
+      const btn = document.createElement("button");
+      btn.textContent = num;
+      btn.classList.toggle("active", num === state.currentPage);
+      btn.setAttribute("aria-label", `Go to page ${num}`);
+      btn.onclick = () => {
+        if (num !== state.currentPage) {
+          state.currentPage = num;
+          renderTable();
+          buildPagination();
+          updateSelectAllCheckbox();
+        }
+      };
+      return btn;
+    };
+
+    // Prev button
+    if (state.currentPage > 1) {
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "« Prev";
+      prevBtn.onclick = () => {
+        state.currentPage--;
+        renderTable();
+        buildPagination();
+        updateSelectAllCheckbox();
+      };
+      container.appendChild(prevBtn);
+    }
+
+    // Page buttons - show up to 7 with ellipsis
+    let startPage = Math.max(1, state.currentPage - 3);
+    let endPage = Math.min(Math.ceil(state.filteredCount / ITEMS_PER_PAGE), state.currentPage + 3);
+
+    if (startPage > 1) {
+      container.appendChild(createPageButton(1));
+      if (startPage > 2) container.appendChild(document.createTextNode(" ... "));
+    }
+    for (let i = startPage; i <= endPage; i++) {
+      container.appendChild(createPageButton(i));
+    }
+    if (endPage < Math.ceil(state.filteredCount / ITEMS_PER_PAGE)) {
+      if (endPage < Math.ceil(state.filteredCount / ITEMS_PER_PAGE) - 1) container.appendChild(document.createTextNode(" ... "));
+      container.appendChild(createPageButton(Math.ceil(state.filteredCount / ITEMS_PER_PAGE)));
+    }
+
+    // Next button
+    if (state.currentPage < Math.ceil(state.filteredCount / ITEMS_PER_PAGE)) {
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next »";
+      nextBtn.onclick = () => {
+        state.currentPage++;
+        renderTable();
+        buildPagination();
+        updateSelectAllCheckbox();
+      };
+      container.appendChild(nextBtn);
+    }
+  }
+
+  // === Event Handlers ===
+
+  // Called when an editable cell changes
+  function onCellEdit(event) {
+    const input = event.target;
+    const field = input.dataset.field;
+    const tr = input.closest("tr");
+    const uniqueId = tr.dataset.uniqueid;
+    if (!uniqueId) return;
+
+    const [file, name] = uniqueId.split("||");
+    const item = state.filesData[file].items.find(i => i.name === name);
+    if (!item) return;
+
+    // Save undo snapshot before change
+    const oldData = deepClone(item);
+
+    // Update field value on item with type normalization
+    if (["nominal", "lifetime", "restock", "min"].includes(field)) {
+      let val = parseInt(input.value);
+      if (isNaN(val) || val < 0) val = 0;
+      input.value = val;
+      setField(item, field, val);
+    } else {
+      // string fields: category, usage, tag, tier
+      setField(item, field, input.value);
+    }
+
+    // Push undo state
+    state.undoStack.push({ file, itemId: name, oldData, newData: deepClone(item) });
+    state.redoStack = []; // Clear redo on new edit
+    setStatus(`✅ Edited '${name}' in '${file}'. Undo stack: ${state.undoStack.length}`);
+    updateBulkButtons();
+  }
+
+  // Called when a row's checkbox is toggled
+  function onRowSelectionChange(event) {
+    const checkbox = event.target;
+    const tr = checkbox.closest("tr");
+    const uniqueId = tr.dataset.uniqueid;
+    if (!uniqueId) return;
+
+    const selectedSet = state.selectedEntries.get(state.currentFile);
+    if (!selectedSet) return;
+
+    if (checkbox.checked) selectedSet.add(uniqueId);
+    else selectedSet.delete(uniqueId);
+
+    updateBulkButtons();
+    updateSelectAllCheckbox();
+  }
+
+  // Called when "select all" checkbox toggled
+  function onSelectAllChange(event) {
+    const checked = event.target.checked;
+    const container = document.getElementById("fileViewer");
+    const checkboxes = container.querySelectorAll(".row-select");
+    const selectedSet = state.selectedEntries.get(state.currentFile);
+    if (!selectedSet) return;
+
+    checkboxes.forEach(cb => {
+      cb.checked = checked;
+      const tr = cb.closest("tr");
+      const uniqueId = tr.dataset.uniqueid;
+      if (checked) selectedSet.add(uniqueId);
+      else selectedSet.delete(uniqueId);
+    });
+    updateBulkButtons();
+  }
+
+  // Bulk edit apply button clicked
+  function onBulkApply() {
+    if (!state.currentFile) return;
+    const selectedSet = state.selectedEntries.get(state.currentFile);
+    if (!selectedSet || selectedSet.size === 0) {
+      setStatus("⚠️ No items selected for bulk edit.", true);
+      return;
+    }
+
+    const field = document.getElementById("bulkField").value;
+    const setValRaw = document.getElementById("bulkSetValue").value.trim();
+    const adjustRaw = document.getElementById("bulkAdjustPercent").value.trim();
+
+    // Validation: mutually exclusive setVal and adjust
+    if (setValRaw && adjustRaw) {
+      setStatus("⚠️ Please use either 'Set to' OR 'Adjust by %', not both.", true);
+      return;
+    }
+    if (!setValRaw && !adjustRaw) {
+      setStatus("⚠️ Enter a value to set or adjust.", true);
+      return;
+    }
+
+    let setVal = null, adjustPercent = null;
+    if (setValRaw) {
+      setVal = parseInt(setValRaw);
+      if (isNaN(setVal) || setVal < 0) {
+        setStatus("⚠️ Invalid 'Set to' value (must be zero or positive integer).", true);
+        return;
+      }
+    }
+    if (adjustRaw) {
+      adjustPercent = parseFloat(adjustRaw);
+      if (isNaN(adjustPercent)) {
+        setStatus("⚠️ Invalid 'Adjust by %' value (must be a number).", true);
+        return;
+      }
+    }
+
+    const items = state.filesData[state.currentFile].items;
+    let appliedCount = 0;
+
+    // Apply changes and save undo snapshots per item
+    selectedSet.forEach(uniqueId => {
+      const [file, name] = uniqueId.split("||");
+      if (file !== state.currentFile) return;
+      const item = items.find(i => i.name === name);
+      if (!item) return;
+      const oldData = deepClone(item);
+
+      if (setVal !== null) {
+        setField(item, field, setVal);
+      } else if (adjustPercent !== null) {
+        let currentVal = Number(getField(item, field));
+        if (isNaN(currentVal)) currentVal = 0;
+        let newVal = Math.round(currentVal * (1 + adjustPercent / 100));
+        if (newVal < 0) newVal = 0;
+        setField(item, field, newVal);
+      }
+
+      state.undoStack.push({ file, itemId: name, oldData, newData: deepClone(item) });
+      appliedCount++;
+    });
+
+    state.redoStack = []; // Clear redo on new edits
+    setStatus(`✅ Bulk edit applied to ${appliedCount} item(s). Undo stack: ${state.undoStack.length}`);
+    renderTable();
+    buildPagination();
+    updateBulkButtons();
+    updateSelectAllCheckbox();
+  }
+
+  // Select all visible button clicked
+  function onSelectAllVisible() {
+    const filtered = getFilteredSortedItems();
+    const paged = getPagedItems(filtered);
+    if (!state.currentFile) return;
+    const selectedSet = state.selectedEntries.get(state.currentFile);
+    if (!selectedSet) return;
+    paged.forEach(item => {
+      selectedSet.add(generateUniqueId(state.currentFile, item.name));
+    });
+    renderTable();
+    updateBulkButtons();
+    updateSelectAllCheckbox();
+  }
+
+  // Undo action
+  function undo() {
+    if (state.undoStack.length === 0) {
+      setStatus("⚠️ Nothing to undo.", true);
+      return;
+    }
+    const action = state.undoStack.pop();
+    const { file, itemId, oldData, newData } = action;
+
+    const items = state.filesData[file].items;
+    const itemIndex = items.findIndex(i => i.name === itemId);
+    if (itemIndex < 0) return;
+
+    // Revert item to oldData
+    items[itemIndex] = deepClone(oldData);
+    state.redoStack.push(action);
+
+    setStatus(`↩️ Undo: Reverted '${itemId}' in '${file}'. Undo stack size: ${state.undoStack.length}`);
+    if (file === state.currentFile) renderTable();
+  }
+
+  // Redo action
+  function redo() {
+    if (state.redoStack.length === 0) {
+      setStatus("⚠️ Nothing to redo.", true);
+      return;
+    }
+    const action = state.redoStack.pop();
+    const { file, itemId, oldData, newData } = action;
+
+    const items = state.filesData[file].items;
+    const itemIndex = items.findIndex(i => i.name === itemId);
+    if (itemIndex < 0) return;
+
+    // Reapply newData
+    items[itemIndex] = deepClone(newData);
+    state.undoStack.push(action);
+
+    setStatus(`↪️ Redo: Reapplied '${itemId}' in '${file}'. Undo stack size: ${state.undoStack.length}`);
+    if (file === state.currentFile) renderTable();
+  }
+
+  // Merge all mods into base file, with conflict options
+  function mergeAllIntoBase() {
+    if (state.fileOrder.length < 2) {
+      setStatus("⚠️ Load at least two files to merge.", true);
+      return;
+    }
+    const baseName = state.fileOrder[0];
+    const baseData = state.filesData[baseName];
+    const baseItems = baseData.items;
+
+    let added = 0;
+    let overwritten = 0;
+    let skipped = 0;
+
+    // Confirm merge conflict behavior with user
+    const behavior = prompt(
+      `Merge Conflict Behavior: type 'skip' to skip duplicates, 'overwrite' to overwrite duplicates.\nCurrent: ${state.mergeConflictBehavior}`,
+      state.mergeConflictBehavior
+    );
+    if (behavior && (behavior === "skip" || behavior === "overwrite")) {
+      state.mergeConflictBehavior = behavior;
+    }
+
+    // Create a Map for quick lookup of base items by name
+    const baseMap = new Map(baseItems.map(i => [i.name, i]));
+
+    for (let i = 1; i < state.fileOrder.length; i++) {
+      const modName = state.fileOrder[i];
+      const modItems = state.filesData[modName].items;
+
+      modItems.forEach(modItem => {
+        if (baseMap.has(modItem.name)) {
+          if (state.mergeConflictBehavior === "overwrite") {
+            // Overwrite base
+            const oldData = deepClone(baseMap.get(modItem.name));
+            baseMap.set(modItem.name, deepClone(modItem));
+            const idx = baseItems.findIndex(i => i.name === modItem.name);
+            if (idx >= 0) baseItems[idx] = deepClone(modItem);
+            overwritten++;
+            // Undo snapshot (for overwrite)
+            state.undoStack.push({ file: baseName, itemId: modItem.name, oldData, newData: deepClone(modItem) });
+          } else {
+            skipped++;
+          }
+        } else {
+          baseMap.set(modItem.name, deepClone(modItem));
+          baseItems.push(deepClone(modItem));
+          added++;
+        }
+      });
+    }
+    state.redoStack = [];
+
+    setStatus(`✅ Merge complete: Added ${added}, Overwritten ${overwritten}, Skipped ${skipped} entries.`);
+    if (state.currentFile === baseName) {
+      renderTable();
+      buildPagination();
+      updateBulkButtons();
+      updateSelectAllCheckbox();
+    }
+  }
+
+  // Export base XML after syncing JS data to XML DOM
+  function exportBaseXML() {
+    if (state.fileOrder.length === 0) {
+      setStatus("⚠️ No files loaded to export.", true);
+      return;
+    }
+    const baseName = state.fileOrder[0];
+    const baseData = state.filesData[baseName];
+    const { xmlDoc, items } = baseData;
+
+    // Sync JS items back to XML document
+    const typesEl = xmlDoc.querySelector("types");
+    if (!typesEl) {
+      setStatus("❌ Invalid base XML structure: missing <types> element.", true);
+      return;
+    }
+
+    // Remove existing <type> children
+    while (typesEl.firstChild) typesEl.removeChild(typesEl.firstChild);
+
+    // Append all items as <type> elements
+    items.forEach(item => {
+      const typeEl = objToXmlType(xmlDoc, item);
+      typesEl.appendChild(typeEl);
+    });
+
+    // Serialize to string
+    const xmlStr = serializeXML(xmlDoc);
+
+    // Trigger download
+    const blob = new Blob([xmlStr], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = baseName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setStatus(`✅ Exported base file '${baseName}' for download.`);
+  }
+
+  // Update bulk edit buttons enabled state based on selection
+  function updateBulkButtons() {
+    const selectedSet = state.selectedEntries.get(state.currentFile);
+    const hasSelection = selectedSet && selectedSet.size > 0;
+    document.getElementById("bulkApplyButton").disabled = !hasSelection;
+    document.getElementById("selectAllVisibleButton").disabled = false;
+  }
+
+  // Update "select all" checkbox indeterminate and checked state
+  function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+    if (!selectAllCheckbox) return;
+    const container = document.getElementById("fileViewer");
+    const checkboxes = container.querySelectorAll(".row-select");
+    if (checkboxes.length === 0) {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+      return;
+    }
+    const allChecked = [...checkboxes].every(cb => cb.checked);
+    const someChecked = [...checkboxes].some(cb => cb.checked);
+    selectAllCheckbox.checked = allChecked;
+    selectAllCheckbox.indeterminate = !allChecked && someChecked;
+  }
+
+  // === Setup Event Listeners ===
+
+  document.getElementById("multiFileUpload").addEventListener("change", e => {
+    loadFiles(e.target.files);
+  });
+
+  document.getElementById("mergeButton").addEventListener("click", () => {
+    if (confirm("Are you sure you want to merge all loaded mod files into the base file?")) {
+      mergeAllIntoBase();
+    }
+  });
+
+  document.getElementById("exportButton").addEventListener("click", () => {
+    exportBaseXML();
+  });
+
+  document.getElementById("filterInput").addEventListener("input", () => {
+    state.currentPage = 1;
+    renderTable();
+    buildPagination();
+    updateSelectAllCheckbox();
+  });
+  document.getElementById("tagFilter").addEventListener("input", () => {
+    state.currentPage = 1;
+    renderTable();
+    buildPagination();
+    updateSelectAllCheckbox();
+  });
+  document.getElementById("tierFilter").addEventListener("input", () => {
+    state.currentPage = 1;
+    renderTable();
+    buildPagination();
+    updateSelectAllCheckbox();
+  });
+  document.getElementById("sortField").addEventListener("change", () => {
+    renderTable();
+    buildPagination();
+    updateSelectAllCheckbox();
+  });
+  document.getElementById("sortOrder").addEventListener("change", () => {
+    renderTable();
+    buildPagination();
+    updateSelectAllCheckbox();
+  });
+
+  document.getElementById("bulkApplyButton").addEventListener("click", () => {
+    onBulkApply();
+  });
+  document.getElementById("selectAllVisibleButton").addEventListener("click", () => {
+    onSelectAllVisible();
+  });
+
+  // Keyboard shortcuts for undo/redo
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      e.preventDefault();
+      undo();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  // Initial status
+  setStatus("Load your types.xml files to begin.");
+
+  // === Expose for debugging (optional) ===
+  window.__dayzEditorState = state;
+})();
+</script>
+</body>
+</html>
